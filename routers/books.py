@@ -27,15 +27,15 @@ def get_bookall(point_skip:int=0,limit:int=10,db:Session=Depends(get_db)):
 @router.get("/{id}",response_model=BookResponse)
 def get_book(id:int,db:Session=Depends(get_db)):
     book=db.query(Book).filter(Book.id==id).first()
-    if book  not in Book:
-        raise HTTPSExtension(status_code=404,detail="Book Not Found") 
+    if not book: 
+        raise HTTPSException(status_code=404,detail="Book Not Found") 
     return book
 
 @router.put("/{id}",reponse_model=BookResponse)
 def put_book(id:int,book:BookCreate,db:Session=Depends(get_db)):
     db_book=db.query(Book).filter(Book.id==id).first()
     if not db_book:
-        HTTPSExtension(status_code=404,detail="Book not found")
+        HTTPSException(status_code=404,detail="Book not found")
 
     for key,value in book.model_dump().items():
         setattr(db_book,key,value)
