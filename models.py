@@ -11,11 +11,12 @@ class User(Base):
     username=Column(String,unique=True,index=True,nullable=False)
     email=Column(String,unique=True,nullable=False,index=True)
     password=Column(String,nullable=False)
-    is_active=Column(Boolean,default=False)
+    is_active=Column(Boolean,default=True)
+    full_name=Column(String,nullable=False)
     created_at=Column(DateTime(timezone=True),server_default=func.now())
 
     books=relationship("Book",back_populates="owner")
-
+ 
 
 class Book(Base):
     __tablename__="books"
@@ -27,9 +28,9 @@ class Book(Base):
     price=Column(Float)
     description=Column(Text,nullable=False)
     owner_id=Column(Integer,ForeignKey("users.id"))
-    created_id=Column(DateTime(timezone=True,server_default=func.now()))
-
-    users=relationship("User",back_populates="books")
+    created_id=Column(DateTime(timezone=True),server_default=func.now())
+  
+    owner=relationship("User",back_populates="books")
 
        
 
