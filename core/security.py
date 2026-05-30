@@ -3,6 +3,7 @@ from datetime import timedelta,datetime,timezone
 from json import JWTError,jwt
 from typing import Optional
 import os
+from fastapi import Depends,HTTPException
 
 pwd_context=CryptoContext(
     schemes=["bcrypt"],
@@ -34,7 +35,21 @@ def decode(token:str)->Optional[dict]:
     except JWTError:
         return None    
 
+oauth2_scheme=OAuth2PasswordBearer(tokenURL="/auth/login")
 
+def get_current_user(token:str=Depends(oauth2_scheme),db:session=Depends(get_db))->User:
+    credentials_exception=HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="could not valid credentials",
+        headers={"WWW-Autenticate":"Bearer"},
+
+    )
+
+    try:
+        payload=decode_token(token)
+        if not payload:
+            raise credentials_exception
+    
 
 
 
