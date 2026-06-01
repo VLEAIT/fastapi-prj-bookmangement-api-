@@ -1,8 +1,10 @@
+from pydantic import BaseModel,field_validator,model_validator,Field,EmailStr
+from typing import Optional
+
+
 class UserBase(BaseModel):
-    id:int
     username:str=Field(min_length=6,max_length=20)
     full_name:str
-    is_active:bool=Field(default=True)
     email:EmailStr
 
     @field_validator("username")
@@ -21,7 +23,7 @@ class UserCreate(UserBase):
     def hashed_password(self):
         if self.password!=self.confirm_password:
             raise ValueError("Password no conform")
-            return self
+        return self
 
 
 class UserLogin(BaseModel):
@@ -29,10 +31,10 @@ class UserLogin(BaseModel):
     password:str
 
 class UserUpdate(BaseModel):
-    username=Optional[str]=Field(None,min_length=6,max_length=20)
-    full_name=Optional[str]=None
-    is_active=Optional[bool]=None
-    email=Optional[EmailStr]=None
+    username:Optional[str]=Field(None,min_length=6,max_length=20)
+    full_name:Optional[str]=None
+    is_active:Optional[bool]=None
+    email:Optional[EmailStr]=None
 
     @field_validator("username")
     @classmethod
@@ -41,3 +43,10 @@ class UserUpdate(BaseModel):
         if " " in v:
             raise ValueError("no space allowed") 
         return v    
+class UserResponse(UserBase):
+    id:int
+    is_active:bool=Field(default=True)
+
+    model_config={"from_attributes":True}
+
+     

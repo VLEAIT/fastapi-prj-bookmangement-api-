@@ -54,14 +54,19 @@ def patch_book(id:int,book:BookUpdate,db:Session=Depends(get_db)):
     db.refresh(db_book)
     return(db_book)
 
-@router.delete("/{id}",status_code=204)
-def delete_db(id:int,db:Session=Depends(get_db)):
+@router.delete("/{id}",status_code=status.HTTP_204_NO_CONTENT)
+def delete(id:int,current_user:User=Depends(get_cuurent_user),db:Session=Depends(get_db)):
     db_book=db.query(Book).filter(Book.id==id).first()
     if not db_book:
-        HTTPSException(status_code=404,detail="Book not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="no data found")
+    if db_book.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=" user is not authroried")
     db.delete(db_book)
     db.commit()
-    return None
+    return None       
+
+
+    
 
 
 
