@@ -1,35 +1,36 @@
-from fastapi import HTTPException,APIRouter,Depends
-from database import get_db
-from schemas import UserCreate,UserResponse,
-from models import User
-from core import hashed_password,verify_password,create_token
+from pydantic_settings import BaseSettings,SettingsConfigDict
+from typing import LiST
+from pydantic import AnyHTTPUrl,field_validator
 
 
+class Settings(BaseSettings):
+    PROJECT_NAME:str="Book Tracker API"
+    VERSION:str="v1.0"
+    API_V1_STR:str="/api/v1"
 
 
-router=APIRouter(
-    preflix="/auth",
-    tags=["auth"]
-)
-#Register
-@router.post("/register",response_model=UserResponse,status_code=201)
-def register(user:UserCreate,db:Sessions=Depends(get_db)):
-    existing=db.query(User).filter(User.email==user.email).first()
-    if existing:
-        raise HTTPException(status_code=status.HTTP_204_NO_CONTENT,detail="no content")
-    hashed=hashed_password(password)
-    db_user=User(**user.model_dump(exclude:{"password","conform_password"}),password=hashed)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+    ALLOWED_ORIGIN:List[AnyHTTPUrl]
+    
+    DATABSE_URL:str
+    SECRET_KEY:str
 
-#login
-@router.post("/login")
-def login(user:UserLogin,db:Sessions=Depends(get_db)):
-    existing =db.query(User).filter(User.email==user.email).first()
-    if not existing or not verify_password(user.password,existing.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="the value is not authorized")
-    token=create_token({"sub":str(existing.id)})
-    return {"acces_token":token,"token_type":"bearer"}    
+    @field_validator("ALLOWED_ORIGIN", mode="before")
+    @classmethod
+    def  modify_origin(cls,value:Union[str,List[str]])->List[str]:
+        if isinstance(value,list):
+            return value
+        if isinstance(value,str):
+            if  value.startswith("[") and value.endswith("]"):
+                return[item.strip(" '/")for item in value[1:-1].split(",")]
+            return  [value.strip()]    
+        raise ValueError("Invalid fomrat for origin") 
+
+        model_config=SettingConfigDict(
+            env_file=".env",
+            case_sensitive=True,
+            extra="ignore"
+        )
+
+settings=Settings()
+
 
