@@ -1,6 +1,7 @@
-from pydantic_settings import BaseSettings,SettingsConfigDict
-from typing import LiST
+from pydantic_settings import  BaseSettings,SettingsConfigDict
 from pydantic import AnyHTTPUrl,field_validator
+from typing import List,Union
+
 
 
 class Settings(BaseSettings):
@@ -10,27 +11,26 @@ class Settings(BaseSettings):
 
 
     ALLOWED_ORIGIN:List[AnyHTTPUrl]
-    
-    DATABSE_URL:str
+    DATABASE_URL:str
     SECRET_KEY:str
+    PRODUCTION:bool=False
 
-    @field_validator("ALLOWED_ORIGIN", mode="before")
+    @field_validator("ALLOWED_ORIGIN",mode="before")
     @classmethod
-    def  modify_origin(cls,value:Union[str,List[str]])->List[str]:
-        if isinstance(value,list):
+    def validate_origin(cls,value:Union[str,List[str]])->List[str]:
+        if isinstance (value,list): 
             return value
         if isinstance(value,str):
-            if  value.startswith("[") and value.endswith("]"):
-                return[item.strip(" '/")for item in value[1:-1].split(",")]
-            return  [value.strip()]    
-        raise ValueError("Invalid fomrat for origin") 
+            if value.startswith("[") and value.endswith("]"):
+                return[item.strip("'/") for item in value[1:-1].split(",")]
+            return[value.strip()] 
+        raise ValueError("the data inserted is error ") 
 
-        model_config=SettingConfigDict(
+    model_config=SettingsConfigDict(
             env_file=".env",
-            case_sensitive=True,
+            case_sensetive=True,
             extra="ignore"
         )
-
 settings=Settings()
 
 

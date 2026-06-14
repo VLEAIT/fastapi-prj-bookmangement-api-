@@ -3,17 +3,31 @@ from routers import auth,books,users
 import time
 import logging
 from core import settings
+from fastapi.middleware.core import CORSMiddlware
+from contextlib import asynccontextmanager
+from routers import api_router
+from middleware.logging import LoggingMiddleware
+
+
+@asynccontextmanager
+async def lifespan(app:FastAPI):
+    logging.getLogger("uvicorn.access").info("Intialize the enviroment")
+    yield
+    logging.getlogger("uvicorn.access").info("cleaning up operational resources")
 
 
 
-logger=logging.getlogger("uvicorn.access")
+app=FastAPI(
+    titles=settings.PROJECT_NAME,
+    version=settings.VERSION,
+    lifespan=lifespan,
+    docs_url=f"{settings.API_V1_STR}/docs" if not settings.PRODUCTION else None,
+    redocs_url=f"{settings.API_V1_STR}/redocs" if not settings.PRODUCTION else None
+    )
 
 
-app=FastAPI(titles="Book Tracker API",
-version="1.0.0")
 
-app.include_router(auth.router)
-app.include_router(books.router)
+app.add_middleware(LoggingMiddleware)
 
 if settings.ALLOWED_ORIGINS:
     app.add_middleware(
@@ -45,3 +59,5 @@ async def log_requests(request:Request,call_next):
         process_time =time.perf_counter()-start_time
         logger.error(f"Request failed after {process_time:.4f}s | Error:{str(e)}")
         raise e
+
+app.include_router(api_router,preflix=settings.API_V1_STR) 
