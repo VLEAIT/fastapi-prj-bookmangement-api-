@@ -38,26 +38,4 @@ if settings.ALLOWED_ORIGINS:
         allow_headers=["Content-Type","Authorization","X-Request-With"],
     )
 
-@app.middleware("http")
-async def log_requests(request:Request,call_next):
-    start_time = time.perf_counter()
-
-    try:
-        response=await call_next(request)
-        process_time=time.perf_counter() - start_time
-
-
-        logger.info(
-            f"Method: {request.method} | Path: {request.url.path} | "
-            f"Status: {response.status_code} | Duration: {process_time:.4f}s"
-        )
-
-        response.headers["X-Process-Time"]=f"{process_time:.4f}s"
-        return response
-
-    except Exception as e:
-        process_time =time.perf_counter()-start_time
-        logger.error(f"Request failed after {process_time:.4f}s | Error:{str(e)}")
-        raise e
-
 app.include_router(api_router,preflix=settings.API_V1_STR) 

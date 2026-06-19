@@ -4,6 +4,9 @@ from jose import JWTError,jwt
 from typing import Optional
 import os
 from fastapi import Depends,HTTPException
+from sqlalchemy.orm import Session
+from core import hashed_password,verify_password,create_token
+  
 
 pwd_context=CryptoContext(
     schemes=["bcrypt"],

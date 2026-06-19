@@ -57,3 +57,239 @@ async def delete_book(id:int):
 
 
     vL47JL0u3GtgQcfs
+
+
+
+from pydantic import BaseModel,Field,EmailStr,model_validator
+from typing import Optional,literal
+from fastapi import FastAPI
+
+class BookCreate(BaseModel):
+    title:str=Field(min_length=0,max_length=200)
+    author:str
+    pages:int=Field(gt=0)
+    price:float=Field(ge=0)
+    description:Optional[str]=None
+
+class BookResponse(BookCreate):
+    id:int
+    model_config={"from_attributes":True}
+
+class BookUpdate(BaseModel):
+    title:Optional[str]=Field(None,min_length=0,max_length=200)
+    author:Optional[str]=None
+    pages:Optional[int]=Field(None,gt=0)
+    price:Optional[float]=Field(None,ge=0)
+    description=Optional[str]=None
+
+
+class UserBase(BaseModel):
+    id:int
+    username:str=Field(min_length=6,max_length=20)
+    full_name:str
+    is_active:bool=Field(default=True)
+    email:EmailStr
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls,v:str)->str:
+        v=v.strip()
+        if " " in v:
+            raise ValueError("no space allowed")
+        return v    
+
+class UserCreate(UserBase):
+    password:str=Field(min_length=8,max_length=20)
+    confirm_password:str=Field(min_length=8,max_length=20)
+
+    @model_validator(mode="after")
+    def hashed_password(self):
+        if self.password!=self.confirm_password:
+            raise ValueError("Password no conform")
+            return self
+
+
+class UserLogin(BaseModel):
+    email:EmailStr
+    password:str
+
+class UserUpdate(BaseModel):
+    username=Optional[str]=Field(None,min_length=6,max_length=20)
+    full_name=Optional[str]=None
+    is_active=Optional[bool]=None
+    email=Optional[EmailStr]=None
+
+    @field_validator("username")
+    @classmethod
+    def verify_username(cls,v:str)->str:
+        v=v.strip()
+        if " " in v:
+            raise ValueError("no space allowed") 
+        return v    
+
+rom sqlalchemy import Column,Integer,String,ForeignKey,Boolean,Text,DateTime,Float
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from database import Base
+
+
+class User(Base):
+    __tablename__="users"
+
+    id=Column(Integer,primary_key=True,index=True)
+    username=Column(String,unique=True,index=True,nullable=False)
+    email=Column(String,unique=True,nullable=False,index=True)
+    password=Column(String,nullable=False)
+    is_active=Column(Boolean,default=True) 
+    full_name=Column(String,nullable=False)
+    created_at=Column(DateTime(timezone=True),server_default=func.now())
+
+    books=relationship("Book",back_populates="owner")
+ 
+
+class Book(Base):
+    __tablename__="books" 
+
+    id=Column(Integer,primary_key=True,index=True)
+    title=Column(String,nullable=False)
+    author=Column(String,nullable=False)
+    pages=Column(Integer)
+    price=Column(Float)
+    description=Column(Text,nullable=False)
+    owner_id=Column(Integer,ForeignKey("users.id"))
+    created_id=Column(DateTime(timezone=True),server_default=func.now())
+  
+    owner=relationship("User",back_populates="books")
+
+
+
+# routers/auth.py
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from database import get_db
+from models import User
+from schemas import UserCreate, UserResponse, Token
+from core.security import hash_password, verify_password,
+create_access_token
+router = APIRouter(prefix="/auth", tags=["auth"])
+# REGISTER
+@router.post("/register", response_model=UserResponse, status_code=201)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+ # Check email not already taken
+ existing = db.query(User).filter(User.email == user.email).first()
+ if existing:
+ raise HTTPException(status_code=409, detail="Email already
+registered")
+ # Hash password before saving
+ hashed = hash_password(user.password)
+ db_user = User(username=user.username, email=user.email,
+password=hashed)
+ db.add(db_user)
+ db.commit()
+ db.refresh(db_user)
+ return db_user
+# LOGIN
+@router.post("/login")
+def login(email: str, password: str, db: Session = Depends(get_db)):
+ user = db.query(User).filter(User.email == email).first()
+ if not user or not verify_password(password, user.password):
+ raise HTTPException(status_code=401, detail="Invalid credentials")
+ token = create_access_token({"sub": str(user.id)})
+ return {"access_token": token, "token_type": "bearer"}
+4.3 Protecting routes with Depends
+# core/security.py — add this dependency
+from fastapi import Depends, HTTPException
+
+
+28 |     existing=db.query(User).filter(User.email==user.email).first()
+29 |     if not exisitng or not verify_password(user.password,existing.password):
+30 |         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="the value is not authorized")
+   |                                         ^^^^^^
+31 |     token=create_token({"sub":str(existing.id)}) 
+32 |     return {"access_token":token,"token_type":"bearer"}  
+   |
+
+
+
+status.HTTP_200_OK
+status.HTTP_201_CREATED
+status.HTTP_204_NO_CONTENT
+status.HTTP_401_UNAUTHORIZED
+status.HTTP_403_FORBIDDEN
+status.HTTP_404_NOT_FOUND
+
+
+import httpx
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Depends, Request
+
+# 1. Manage the client lifecycle globally
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize a single, high-performance connection pool at startup
+    limits = httpx.Limits(max_keepalive_connections=5, max_connections=20)
+    async_client = httpx.AsyncClient(limits=limits, timeout=10.0)
+    
+    # Store it inside the FastAPI state container
+    app.state.http_client = async_client
+    
+    yield
+    
+    # Clean up and close connection sockets gracefully at shutdown
+    await async_client.aclose()
+
+app = FastAPI(lifespan=lifespan)
+
+# 2. Dependency injection to pull the client state safely into any route
+def get_http_client(request: Request) -> httpx.AsyncClient:
+    return request.app.state.http_client
+
+@app.get("/api/v1/external-data")
+async def get_external_data(client: httpx.AsyncClient = Depends(get_http_client)):
+    # 🚀 Professional, non-blocking asynchronous call utilizing pre-established pools
+    response = await client.get("https://api.example.com/data")
+    response.raise_for_status() # Fail early if external API drops
+    return response.json()
+
+import logging
+from fastapi import FastAPI, BackgroundTasks, Depends, status
+from pydantic import BaseModel, EmailStr
+
+logger = logging.getLogger("uvicorn.error")
+app = FastAPI()
+
+# Strict Pydantic Data Ingestion Schemas
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr  # Enforces valid email formats automatically
+
+# 1. Robust, isolated background task function with professional logging
+async def send_welcome_email_task(email: str, username: str):
+    try:
+        logger.info(f"Background worker initiating email dispatch sequence to: {email}")
+        
+        # Simulating an async email server transport connection link
+        # In your social app, this would be where you push to an external Social API
+        # await email_provider.send(to=email, template="welcome")
+        
+        logger.info(f"Email successfully accepted by remote relay for user: {username}")
+    except Exception as exc:
+        # Prevent the backend from crashing; capture diagnostic metrics safely
+        logger.error(f"Critical failure in background execution pipeline for {email}: {str(exc)}")
+
+@app.post("/users", status_code=status.HTTP_201_CREATED)
+async def create_user(
+    user: UserCreate, 
+    background_tasks: BackgroundTasks,
+    # db: Session = Depends(get_db) <- If using sync database management layers
+):
+    # Perform database insertion and operations here...
+    # db.add(db_user)
+    # db.commit()
+    
+    # 2. Schedule the task safely using the FastAPI BackgroundTasks register
+    # We pass the function name, followed by its specific arguments
+    background_tasks.add_task(send_welcome_email_task, user.email, user.username)
+    
+    # 3. Return the payload response instantly back to the frontend dashboard
+    return {"status": "success", "message": "Account created. System compiling profile diagnostics."}
